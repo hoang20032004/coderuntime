@@ -209,10 +209,15 @@ def wait_for_next_run():
 
 def background_scheduler():
     """Background scheduler cho data collection"""
-    print(f"[{datetime.datetime.now()}] Trading Data Collector - 2x daily")
-    print("Schedule: 3:00 PM & 7:00 PM, 5 minutes each")
+    print(f"[{datetime.datetime.now()}] Trading Data Collector - IMMEDIATE START")
+    print("Running first session immediately, then schedule: 3:00 PM & 7:00 PM")
     
     try:
+        # Chạy session đầu tiên ngay lập tức
+        print(f"[{datetime.datetime.now()}] Starting immediate session...")
+        run_single_session()
+        
+        # Sau đó chạy theo lịch
         while True:
             wait_for_next_run()
             
