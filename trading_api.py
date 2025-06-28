@@ -182,8 +182,8 @@ def calculate_next_run_times():
     now = datetime.datetime.now()
     
     run_times = [
-        now.replace(hour=9, minute=0, second=0, microsecond=0),
-        now.replace(hour=15, minute=0, second=0, microsecond=0)
+        now.replace(hour=19, minute=0, second=0, microsecond=0),  # 7:00 PM
+        now.replace(hour=15, minute=0, second=0, microsecond=0)   # 3:00 PM
     ]
     
     next_run_times = []
@@ -210,7 +210,7 @@ def wait_for_next_run():
 def background_scheduler():
     """Background scheduler cho data collection"""
     print(f"[{datetime.datetime.now()}] Trading Data Collector - 2x daily")
-    print("Schedule: 9:00 AM & 3:00 PM, 5 minutes each")
+    print("Schedule: 3:00 PM & 7:00 PM, 5 minutes each")
     
     try:
         while True:
