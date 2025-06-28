@@ -58,8 +58,9 @@ def on_message(ws, message_str):
                 }])
                 raw_data_df = pd.concat([raw_data_df, new_row], ignore_index=True)
                 
-                # In ra thông tin trade để theo dõi
-                print(f"[{datetime.datetime.now()}] {symbol}: {trade}")
+                # In ít thông tin hơn để không spam log
+                if len(raw_data_df) % 50 == 0:  # In mỗi 50 trades
+                    print(f"[{datetime.datetime.now()}] Đã thu thập {len(raw_data_df)} trades")
     except Exception as e:
         print(f"[{datetime.datetime.now()}] Lỗi xử lý message: {e}")
 
@@ -70,54 +71,85 @@ def on_close(ws, close_status_code, close_msg):
     print(f"[{datetime.datetime.now()}] WebSocket đã đóng. Code: {close_status_code}, Message: {close_msg}")
 
 
-def run_ws_enhanced():
-    """Chạy WebSocket với auto-reconnect cho background worker"""
-    while True:
-        try:
-            print(f"[{datetime.datetime.now()}] Đang kết nối WebSocket...")
-            ws = websocket.WebSocketApp(WEBSOCKET_URL,
-                                      on_open=on_open,
-                                      on_message=on_message,
-                                      on_error=on_error,
-                                      on_close=on_close)
-            ws.run_forever(ping_interval=30, ping_timeout=10)
-        except Exception as e:
-            print(f"[{datetime.datetime.now()}] Lỗi WebSocket: {e}")
-            print("Đang thử kết nối lại sau 10 giây...")
-            time.sleep(10)
-
-def save_data_periodically():
-    """Lưu dữ liệu định kỳ để tránh mất dữ liệu"""
+def run_single_session():
+    """Chạy 1 session thu thập dữ liệu trong 5 phút"""
     global raw_data_df
-    while True:
-        try:
-            if not raw_data_df.empty:
-                filename = f"trading_data_{datetime.datetime.now().strftime('%Y%m%d_%H')}.csv"
-                raw_data_df.to_csv(filename, index=False)
-                print(f"[{datetime.datetime.now()}] Đã lưu {len(raw_data_df)} bản ghi vào {filename}")
-                # Reset DataFrame sau khi lưu để tiết kiệm memory
-                raw_data_df = pd.DataFrame()
-            time.sleep(300)  # Lưu mỗi 5 phút
-        except Exception as e:
-            print(f"[{datetime.datetime.now()}] Lỗi khi lưu dữ liệu: {e}")
-            time.sleep(60)
-
-if __name__ == "__main__":
-    print(f"[{datetime.datetime.now()}] Bắt đầu Trading Data Collector...")
-    print("Đây là background worker - sẽ chạy liên tục...")
     
-    # Khởi động thread lưu dữ liệu
-    save_thread = threading.Thread(target=save_data_periodically, daemon=True)
-    save_thread.start()
+    print(f"[{datetime.datetime.now()}] Bắt đầu session thu thập dữ liệu (5 phút)...")
     
-    # Khởi động thread WebSocket
-    ws_thread = threading.Thread(target=run_ws_enhanced, daemon=True)
+    # Tạo WebSocket connection
+    ws = websocket.WebSocketApp(WEBSOCKET_URL,
+                              on_open=on_open,
+                              on_message=on_message,
+                              on_error=on_error,
+                              on_close=on_close)
+    
+    # Chạy WebSocket trong thread riêng
+    ws_thread = threading.Thread(target=lambda: ws.run_forever(ping_interval=30, ping_timeout=10))
+    ws_thread.daemon = True
     ws_thread.start()
     
-    # Giữ main thread chạy
+    # Chờ 5 phút (300 giây)
+    time.sleep(300)
+    
+    # Đóng WebSocket
+    ws.close()
+    print(f"[{datetime.datetime.now()}] Kết thúc session. Đã thu thập {len(raw_data_df)} bản ghi")
+    
+    # Lưu dữ liệu
+    if not raw_data_df.empty:
+        filename = f"trading_data_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+        raw_data_df.to_csv(filename, index=False)
+        print(f"[{datetime.datetime.now()}] Đã lưu dữ liệu vào {filename}")
+        raw_data_df = pd.DataFrame()  # Reset DataFrame
+    
+def calculate_next_run_times():
+    """Tính toán 2 thời điểm chạy trong ngày"""
+    now = datetime.datetime.now()
+    
+    # Chạy lúc 9:00 và 15:00 hàng ngày
+    run_times = [
+        now.replace(hour=9, minute=0, second=0, microsecond=0),
+        now.replace(hour=15, minute=0, second=0, microsecond=0)
+    ]
+    
+    # Nếu đã qua cả 2 thời điểm trong ngày, chuyển sang ngày mai
+    next_run_times = []
+    for run_time in run_times:
+        if run_time > now:
+            next_run_times.append(run_time)
+        else:
+            # Chuyển sang ngày mai
+            next_run_times.append(run_time + datetime.timedelta(days=1))
+    
+    return sorted(next_run_times)
+
+def wait_for_next_run():
+    """Chờ đến thời điểm chạy tiếp theo"""
+    next_runs = calculate_next_run_times()
+    next_run = next_runs[0]
+    
+    wait_seconds = (next_run - datetime.datetime.now()).total_seconds()
+    
+    print(f"[{datetime.datetime.now()}] Thời điểm chạy tiếp theo: {next_run}")
+    print(f"[{datetime.datetime.now()}] Chờ {wait_seconds/3600:.1f} giờ...")
+    
+    time.sleep(wait_seconds)
+
+if __name__ == "__main__":
+    print(f"[{datetime.datetime.now()}] Trading Data Collector - Chế độ 2 lần/ngày")
+    print("Lịch chạy: 9:00 AM và 3:00 PM, mỗi lần 5 phút")
+    
     try:
         while True:
-            time.sleep(60)
-            print(f"[{datetime.datetime.now()}] Worker đang hoạt động. Dữ liệu hiện tại: {len(raw_data_df)} bản ghi")
+            # Chờ đến thời điểm chạy tiếp theo
+            wait_for_next_run()
+            
+            # Chạy session thu thập dữ liệu
+            try:
+                run_single_session()
+            except Exception as e:
+                print(f"[{datetime.datetime.now()}] Lỗi trong session: {e}")
+                
     except KeyboardInterrupt:
         print("\n[Render] Worker đã dừng")  

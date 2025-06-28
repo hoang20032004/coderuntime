@@ -4,9 +4,10 @@
 
 ## Tính năng
 - Thu thập dữ liệu trading real-time cho SOLUSDT, BTCUSDT, ETHUSDT
+- **Lịch chạy**: 2 lần/ngày (9:00 AM và 3:00 PM), mỗi lần 5 phút
 - Auto-reconnect khi mất kết nối
-- Lưu dữ liệu định kỳ vào file CSV
-- Phù hợp để chạy trên background worker
+- Lưu dữ liệu tự động sau mỗi session
+- Tối ưu cho background worker (tiết kiệm tài nguyên)
 
 ## Deploy lên Render
 
@@ -31,9 +32,16 @@ python trading_data.py
 ```
 
 ## File dữ liệu
-Dữ liệu sẽ được lưu vào file CSV theo format: `trading_data_YYYYMMDD_HH.csv`
+Dữ liệu sẽ được lưu vào file CSV theo format: `trading_data_YYYYMMDD_HHMM.csv`
+- Mỗi session (5 phút) tạo 1 file riêng
+- File chứa timestamp, symbol và data giao dịch chi tiết
+
+## Lịch chạy
+- **Thời gian**: 9:00 AM và 3:00 PM (UTC) mỗi ngày
+- **Thời lượng**: 5 phút mỗi lần
+- **Tổng**: 10 phút/ngày (tiết kiệm tài nguyên)
 
 ## Monitoring
-- Logs sẽ hiển thị trong Render dashboard
-- Worker sẽ tự động restart nếu crash
-- Dữ liệu được lưu mỗi 5 phút để tránh mất dữ liệu
+- Logs hiển thị thời gian chạy tiếp theo
+- Worker tự động chờ giữa các session
+- Render free tier có thể chạy tốt với lịch này
