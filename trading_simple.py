@@ -4,6 +4,10 @@ import datetime
 import threading
 import time
 import requests
+from flask import Flask, jsonify
+import os
+
+app = Flask(__name__)
 
 # Define the WebSocket URL and instrument IDs
 WEBSOCKET_URL = "wss://ws.bitget.com/v2/ws/public"
@@ -105,7 +109,24 @@ def wait_for_next_run():
     
     time.sleep(wait_seconds)
 
-if __name__ == "__main__":
+@app.route('/')
+def home():
+    return jsonify({
+        "service": "Trading Data Collector",
+        "status": "running",
+        "data_count": len(collected_data),
+        "schedule": "9:00 AM & 3:00 PM daily"
+    })
+
+@app.route('/api/data')
+def get_data():
+    return jsonify({
+        "total": len(collected_data),
+        "data": collected_data[-50:] if collected_data else []
+    })
+
+def background_worker():
+    """Background thread để chạy data collection"""
     print(f"[{datetime.datetime.now()}] Trading Data Collector - 2x daily")
     print("Schedule: 9:00 AM & 3:00 PM, 5 minutes each")
     
@@ -120,3 +141,12 @@ if __name__ == "__main__":
                 
     except KeyboardInterrupt:
         print("\n[Render] Worker stopped")
+
+if __name__ == "__main__":
+    # Khởi động background worker
+    worker_thread = threading.Thread(target=background_worker, daemon=True)
+    worker_thread.start()
+    
+    # Chạy Flask web server
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port, debug=False)
